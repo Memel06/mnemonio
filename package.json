@@ -1,0 +1,49 @@
+{
+  "name": "mnemonio",
+  "version": "0.1.0",
+  "description": "Persistent structured memory layer for LLM agents",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "bin": {
+    "mnemonio": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["llm", "agent", "memory", "persistent", "mcp", "ai"],
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.4.0",
+    "commander": "^12.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "tsup": "^8.0.0",
+    "vitest": "^2.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

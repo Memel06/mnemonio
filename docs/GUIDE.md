@@ -1,0 +1,477 @@
+# Mnemonio Guide
+
+A practical walkthrough for integrating mnemonio into your project.
+
+## Setting Up
+
+### 1. Install
+
+```bash
+npm install mnemonio
+```
+
+### 2. Initialize the memory directory
+
+From the library:
+
+```typescript
+import { createMnemonioStore } from 'mnemonio';
+
+const store = createMnemonioStore({ memoryDir: './.mnemonio' });
+await store.ensureDir();
+```
+
+Or from the CLI:
+
+```bash
+mnemonio init .mnemonio
+```
+
+This creates the directory and a `MANIFEST.md` entrypoint file:
+
+```
+.mnemonio/
+  MANIFEST.md
+```
+
+### 3. Add to .gitignore (optional)
+
+If memories are per-developer and should not be committed:
+
+```
+.mnemonio/
+```
+
+If you want memories tracked in version control, skip this step.
+
+## Creating a Memory File Manually
+
+Create a markdown file in your memory directory with YAML frontmatter:
+
+```bash
+cat > .mnemonio/identity_role.md << 'EOF'
+---
+name: role
+description: User is a backend engineer focused on observability
+type: identity
+tags: [team, background]
+---
+
+Backend engineer working on the observability platform. Primary language is Go.
+Responsible for the logging pipeline and trace ingestion service.
+EOF
+```
+
+Then add a pointer in `MANIFEST.md`:
+
+```markdown
+# Memory Manifest
+
+- [Role](identity_role.md) -- backend engineer, observability team
+```
+
+The frontmatter fields:
+
+| Field | Required | Values |
+|-------|----------|--------|
+| `name` | No | Human-readable slug for the memory |
+| `description` | No | One-line summary shown in listings and manifests |
+| `type` | No | `identity`, `directive`, `context`, or `bookmark` |
+| `tags` | No | Freeform labels (array of strings) |
+| `expires` | No | ISO date after which this memory is stale |
+
+## Integrating with an Agent Loop
+
+### Wiring Up the LLM Callback
+
+Mnemonio doesn't bundle any provider SDK. You write one callback function that
+takes a system prompt, messages, and max tokens, and returns the model's text
+response. This works with any provider.
+
+```typescript
+import { createMnemonioStore, type LlmCallback } from 'mnemonio';
+
+// Example: generic provider SDK
+const llm: LlmCallback = async ({ system, messages, maxTokens }) => {
+  const response = await yourProvider.chat.create({
+    model: 'your-preferred-model',
+    max_tokens: maxTokens,
+    messages: [{ role: 'system', content: system }, ...messages],
+  });
+  return response.choices[0].message.content;
+};
+
+const store = createMnemonioStore({
+  memoryDir: './.mnemonio',
+  llm,
+});
+
+await store.ensureDir();
+```
+
+### Using in a Chat Loop
+
+```typescript
+async function chat(userMessage: string): Promise<string> {
+  // Build the memory-augmented system prompt
+  const memoryContext = await store.buildPrompt();
+  const systemPrompt = [
+    'You are a helpful engineering assistant.',
+    '',
+    memoryContext,
+  ].join('\n');
+
+  const response = await yourProvider.chat.create({
+    model: 'your-preferred-model',
+    max_tokens: 4096,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userMessage },
+    ],
+  });
+
+  const assistantText = response.choices[0].message.content;
+
+  // Extract memories from the conversation
+  await store.extract({
+    messages: [
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: assistantText },
+    ],
+  });
+
+  return assistantText;
+}
+```
+
+### Vercel AI SDK
+
+The Vercel AI SDK uses a different message format, so map its messages to
+mnemonio's `{ role, content }` shape.
+
+```typescript
+import { generateText } from 'ai';
+import { createMnemonioStore, type LlmCallback } from 'mnemonio';
+
+const llm: LlmCallback = async ({ system, messages, maxTokens }) => {
+  const result = await generateText({
+    model: yourModel,
+    maxTokens,
+    system,
+    messages,
+  });
+  return result.text;
+};
+
+const store = createMnemonioStore({
+  memoryDir: './.mnemonio',
+  llm,
+});
+
+await store.ensureDir();
+
+// In your route handler or server action:
+async function handleChat(userMessage: string) {
+  const memoryContext = await store.buildPrompt();
+
+  const result = await generateText({
+    model: yourModel,
+    maxTokens: 4096,
+    system: `You are a helpful assistant.\n\n${memoryContext}`,
+    messages: [{ role: 'user', content: userMessage }],
+  });
+
+  // Extract memories after the conversation turn
+  await store.extract({
+    messages: [
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: result.text },
+    ],
+  });
+
+  return result.text;
+}
+```
+
+## Using the CLI
+
+### Inspect memories
+
+```bash
+# Show all memory files with metadata
+mnemonio scan .mnemonio
+
+# List with descriptions and age, filtered by type
+mnemonio list .mnemonio --type directive
+
+# Machine-readable output
+mnemonio list .mnemonio --json
+```
+
+### Search
+
+Semantic search requires an API key in your environment:
+
+```bash
+export MNEMONIO_API_KEY=your-api-key
+mnemonio search "database testing" .mnemonio
+```
+
+Output shows relevance scores and reasoning:
+
+```
+  87%  directive_testing.md
+       Directly addresses database testing approach and constraints
+
+  42%  context_auth_rewrite.md
+       Mentions test infrastructure changes related to database
+```
+
+### Stats
+
+```bash
+mnemonio stats .mnemonio
+```
+
+```
+  Files:    12
+  Size:     8.3KB
+  Types:
+    identity: 2
+    directive: 5
+    context: 3
+    bookmark: 2
+  Oldest:   2mo ago
+  Newest:   3h ago
+```
+
+### Prune stale files
+
+```bash
+# Preview what would be removed
+mnemonio prune .mnemonio --dry-run --max-age 60
+
+# Actually remove files older than 60 days or with empty bodies
+mnemonio prune .mnemonio --max-age 60
+```
+
+## Extraction
+
+Extraction analyzes a conversation and writes new memory files (or updates
+existing ones) when it detects durable information worth persisting.
+
+```typescript
+const result = await store.extract({
+  messages: conversationHistory,
+  existingMemories: await store.scan(), // optional, auto-fetched if omitted
+});
+
+if (!result.skipped) {
+  console.log('New files:', result.filesWritten);
+  console.log('Updated:', result.filesUpdated);
+}
+```
+
+What gets extracted:
+
+- **identity** memories when the user reveals role, preferences, or expertise
+- **directive** memories when the user corrects behavior or confirms an approach
+- **context** memories for decisions, timelines, ongoing initiatives
+- **bookmark** memories for pointers to external systems or docs
+
+What does NOT get extracted:
+
+- Ephemeral task details ("fix the typo on line 42")
+- In-progress work state that will change within the session
+- Information already captured in existing memory files
+
+The extraction LLM decides autonomously. If nothing is worth saving, the result
+comes back with `skipped: true`.
+
+## Distillation
+
+Distillation is a periodic consolidation pass that cleans up your memory
+directory. It merges duplicates, removes obsolete entries, tightens prose, and
+rewrites `MANIFEST.md`.
+
+```typescript
+const result = await store.distill();
+
+if (result.consolidated) {
+  console.log('Modified:', result.filesModified);
+  console.log('Removed:', result.filesRemoved);
+} else {
+  console.log('Skipped:', result.reason);
+}
+```
+
+Or via CLI:
+
+```bash
+mnemonio distill .mnemonio --force
+```
+
+### Time gating
+
+By default, distillation skips if less than 5 minutes have passed since the
+last run. This prevents redundant LLM calls. Override with `--force` (CLI) or
+`{ force: true }` (library).
+
+### Locking
+
+Distillation acquires a file lock (`.mnemonio.lock`) to prevent concurrent runs.
+The lock auto-expires after 10 minutes. If another process holds the lock, the
+result returns `reason: 'lock held by another process'`.
+
+### Running distillation on a schedule
+
+Call `distill()` at the end of each session or on a cron. A simple approach:
+
+```typescript
+// At the end of an agent session
+const result = await store.distill();
+if (result.consolidated) {
+  console.log(`Consolidated: ${result.filesModified.length} modified, ${result.filesRemoved.length} removed`);
+}
+```
+
+## Team Memory
+
+Team memory is a shared read-only directory that gets appended to the prompt
+alongside private memories.
+
+### Setup
+
+```
+project-root/
+  .mnemonio/           # private per-developer memory
+  team-memory/         # shared, committed to git
+    onboarding.md
+    coding-standards.md
+    MANIFEST.md
+```
+
+```typescript
+const store = createMnemonioStore({
+  memoryDir: './.mnemonio',
+  teamDir: './team-memory',
+});
+
+// Includes both private and team memories
+const prompt = await store.buildCombinedPrompt();
+```
+
+### Security
+
+Team memory paths are validated against traversal attacks. Use
+`validateTeamWritePath` before writing to the team directory:
+
+```typescript
+try {
+  const safePath = await store.validateTeamWritePath('notes/standup.md');
+  // safePath is resolved and verified to be inside teamDir
+} catch (err) {
+  // PathTraversalError if the path escapes the team directory
+  console.error(err.message);
+}
+```
+
+Blocked patterns:
+
+- `../` segments that escape the team directory
+- Absolute paths outside the team directory
+- Symlinks that resolve outside the team directory
+- Null bytes in paths
+
+## Environment Variables
+
+| Variable | Used by | Description |
+|----------|---------|-------------|
+| `MNEMONIO_API_KEY` | CLI | API key for LLM-dependent commands |
+| `MNEMONIO_BASE_URL` | CLI | Chat completions base URL (default: OpenRouter) |
+| `MNEMONIO_MODEL` | CLI | Model identifier (default: `auto`) |
+
+The library itself does not read environment variables. The CLI's built-in LLM
+resolver checks them. When using the library directly, you provide your own
+`LlmCallback` and handle configuration however you want.
+
+The CLI speaks the standard chat completions protocol (`/chat/completions`),
+so it works with any provider that exposes that endpoint -- hosted or local.
+
+## Troubleshooting
+
+### "LLM callback required for this operation"
+
+You called `findRelevant`, `extract`, or `distill` without passing `llm` in
+your `MnemonioConfig`. These methods need an LLM. Provide a callback:
+
+```typescript
+const store = createMnemonioStore({
+  memoryDir: './.mnemonio',
+  llm: yourLlmCallback,
+});
+```
+
+### "Set MNEMONIO_API_KEY"
+
+The CLI's `search` and `distill` commands need an API key. Export one:
+
+```bash
+export MNEMONIO_API_KEY=your-api-key
+```
+
+Optionally point at your provider:
+
+```bash
+export MNEMONIO_BASE_URL=https://your-provider.com/v1
+export MNEMONIO_MODEL=your-model-id
+```
+
+### Distillation keeps returning "too soon since last distillation"
+
+The default cooldown is 5 minutes. Use `--force` or `{ force: true }`:
+
+```bash
+mnemonio distill .mnemonio --force
+```
+
+### Distillation returns "lock held by another process"
+
+Another process is running distillation. The lock expires after 10 minutes. If
+the other process crashed, delete the lock file manually:
+
+```bash
+rm .mnemonio/.mnemonio.lock
+```
+
+### MANIFEST.md is getting truncated in prompts
+
+Mnemonio truncates `MANIFEST.md` to 200 lines / 25KB by default. Increase the
+limits if needed:
+
+```typescript
+const store = createMnemonioStore({
+  memoryDir: './.mnemonio',
+  maxEntrypointLines: 500,
+  maxEntrypointBytes: 50_000,
+});
+```
+
+Or consolidate your manifest -- run `mnemonio distill` to have the LLM rewrite
+it more concisely.
+
+### Memory files not showing up in scan
+
+`scan()` reads all `.md` files in the memory directory except `MANIFEST.md`.
+Check that:
+
+1. The file has a `.md` extension
+2. The file is directly in the memory directory (not in a subdirectory)
+3. The file is readable by the current process
+
+### Extraction produces no output
+
+If `extract()` returns `skipped: true`, the LLM determined nothing in the
+conversation was worth persisting. This is expected for routine exchanges. The
+extraction agent is intentionally conservative -- it only saves information
+useful in future conversations.
