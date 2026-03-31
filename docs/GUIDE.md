@@ -2,6 +2,94 @@
 
 A practical walkthrough for integrating mnemonio into your project.
 
+## MCP Server (AI Coding Assistants)
+
+Mnemonio ships an MCP server that exposes memory tools to any MCP-compatible
+client. This is the recommended way to integrate with AI coding assistants --
+the agent discovers the tools automatically.
+
+### Quick Setup
+
+Add to your MCP client settings (e.g. `settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "mnemonio": {
+      "command": "npx",
+      "args": ["mnemonio-mcp"],
+      "env": {
+        "MNEMONIO_DIR": "./.mnemonio"
+      }
+    }
+  }
+}
+```
+
+That's it. The agent now has access to 7 memory tools:
+
+| Tool | LLM needed | What it does |
+|------|-----------|--------------|
+| `memory_list` | No | List all memories, optionally filtered by type |
+| `memory_read` | No | Read full content of a memory file |
+| `memory_save` | No | Save a new memory with frontmatter + manifest entry |
+| `memory_search` | Yes | Semantic search across all memories |
+| `memory_extract` | Yes | Auto-extract durable facts from a conversation |
+| `memory_distill` | Yes | Consolidate: merge duplicates, prune stale, tighten |
+| `memory_stats` | No | File count, size, type breakdown |
+
+### LLM-Dependent Tools
+
+For `memory_search`, `memory_extract`, and `memory_distill`, the MCP server
+needs an LLM. Add these env vars:
+
+```json
+{
+  "env": {
+    "MNEMONIO_DIR": "./.mnemonio",
+    "MNEMONIO_API_KEY": "your-api-key",
+    "MNEMONIO_BASE_URL": "https://your-provider.com/v1",
+    "MNEMONIO_MODEL": "your-model"
+  }
+}
+```
+
+The server speaks the standard `/chat/completions` protocol, so any compatible
+provider works.
+
+### Global Install
+
+If you install mnemonio globally (`npm i -g mnemonio`), you can use the binary
+directly instead of `npx`:
+
+```json
+{
+  "mcpServers": {
+    "mnemonio": {
+      "command": "mnemonio-mcp",
+      "env": { "MNEMONIO_DIR": "./.mnemonio" }
+    }
+  }
+}
+```
+
+### How It Works
+
+Once configured, the agent can:
+
+1. **Save memories mid-conversation** -- when you share your role, preferences,
+   or project context, the agent calls `memory_save` to persist it
+2. **Search before answering** -- calls `memory_search` to find relevant context
+3. **Read specific memories** -- calls `memory_read` for full details
+4. **Auto-extract after conversations** -- calls `memory_extract` to capture
+   durable facts
+5. **Consolidate periodically** -- calls `memory_distill` to merge duplicates
+
+No CLAUDE.md instructions needed. The tools are self-describing and the agent
+discovers them via the MCP protocol.
+
+---
+
 ## Setting Up
 
 ### 1. Install
@@ -387,16 +475,18 @@ Blocked patterns:
 
 | Variable | Used by | Description |
 |----------|---------|-------------|
-| `MNEMONIO_API_KEY` | CLI | API key for LLM-dependent commands |
-| `MNEMONIO_BASE_URL` | CLI | Chat completions base URL (default: OpenRouter) |
-| `MNEMONIO_MODEL` | CLI | Model identifier (default: `auto`) |
+| `MNEMONIO_API_KEY` | CLI, MCP server | API key for LLM-dependent operations |
+| `MNEMONIO_BASE_URL` | CLI, MCP server | Chat completions base URL (default: OpenRouter) |
+| `MNEMONIO_MODEL` | CLI, MCP server | Model identifier (default: `auto`) |
+| `MNEMONIO_DIR` | MCP server | Memory directory path (default: `./.mnemonio`) |
 
-The library itself does not read environment variables. The CLI's built-in LLM
-resolver checks them. When using the library directly, you provide your own
-`LlmCallback` and handle configuration however you want.
+The library itself does not read environment variables. The CLI and MCP server
+read them. When using the library directly, you provide your own `LlmCallback`
+and handle configuration however you want.
 
-The CLI speaks the standard chat completions protocol (`/chat/completions`),
-so it works with any provider that exposes that endpoint -- hosted or local.
+Both the CLI and MCP server speak the standard chat completions protocol
+(`/chat/completions`), so they work with any provider that exposes that
+endpoint -- hosted or local.
 
 ## Troubleshooting
 

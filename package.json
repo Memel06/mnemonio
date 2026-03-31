@@ -19,9 +19,12 @@
     }
   },
   "bin": {
-    "mnemonio": "./dist/cli.js"
+    "mnemonio": "./dist/cli.js",
+    "mnemonio-mcp": "./dist/mcp.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -31,17 +34,26 @@
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["llm", "agent", "memory", "persistent", "mcp", "ai"],
+  "keywords": [
+    "llm",
+    "agent",
+    "memory",
+    "persistent",
+    "mcp",
+    "ai"
+  ],
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^12.0.0",
     "yaml": "^2.4.0",
-    "commander": "^12.0.0"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0",
     "tsup": "^8.0.0",
-    "vitest": "^2.0.0",
-    "@types/node": "^20.0.0"
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
   },
   "engines": {
     "node": ">=18.0.0"

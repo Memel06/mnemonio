@@ -5,9 +5,8 @@ file-based memory system that survives across sessions -- markdown files with
 YAML frontmatter, a manifest file, semantic search, automatic extraction from
 conversations, and periodic consolidation.
 
-It ships as both a TypeScript library and a CLI. Two runtime dependencies
-(`yaml`, `commander`). LLM operations use a callback you provide, so it works
-with any provider.
+It ships as a TypeScript library, a CLI, and an MCP server. LLM operations use
+a callback you provide, so it works with any provider.
 
 ## Install
 
@@ -242,6 +241,54 @@ team directory.
 |--------|---------|-------------|
 | `validateTeamWritePath(filePath)` | `Promise<string>` | Resolve and validate path within team dir |
 | `isTeamPath(filePath)` | `boolean` | Check if path is inside team directory |
+
+## MCP Server
+
+Mnemonio ships an MCP server so AI coding assistants can discover and use
+memory tools automatically.
+
+### Setup
+
+Add to your MCP client settings (e.g. `settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "mnemonio": {
+      "command": "npx",
+      "args": ["mnemonio-mcp"],
+      "env": {
+        "MNEMONIO_DIR": "./.mnemonio"
+      }
+    }
+  }
+}
+```
+
+For LLM-dependent tools (search, extract, distill), also set:
+
+```json
+{
+  "env": {
+    "MNEMONIO_DIR": "./.mnemonio",
+    "MNEMONIO_API_KEY": "your-api-key",
+    "MNEMONIO_BASE_URL": "https://your-provider.com/v1",
+    "MNEMONIO_MODEL": "your-model"
+  }
+}
+```
+
+### Available Tools
+
+| Tool | LLM needed | Description |
+|------|-----------|-------------|
+| `memory_list` | No | List all memories, optionally filtered by type |
+| `memory_read` | No | Read full content of a memory file |
+| `memory_save` | No | Save a new memory with frontmatter + manifest entry |
+| `memory_search` | Yes | Semantic search across all memories |
+| `memory_extract` | Yes | Auto-extract durable facts from a conversation |
+| `memory_distill` | Yes | Consolidate: merge duplicates, prune stale, tighten |
+| `memory_stats` | No | File count, size, type breakdown |
 
 ## License
 
