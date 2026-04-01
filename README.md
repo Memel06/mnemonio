@@ -1,5 +1,7 @@
 # mnemonio
 
+[mnemonio.com](https://mnemonio.com)
+
 Persistent structured memory layer for LLM agents. Mnemonio gives your agent a
 file-based memory system that survives across sessions -- markdown files with
 YAML frontmatter, a manifest file, semantic search, automatic extraction from

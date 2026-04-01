@@ -50,7 +50,7 @@
   "bugs": {
     "url": "https://github.com/Memel06/mnemonio/issues"
   },
-  "homepage": "https://github.com/Memel06/mnemonio#readme",
+  "homepage": "https://mnemonio.com",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
