@@ -28,14 +28,16 @@ export async function tryAcquireLock(
   // Check for existing lock
   try {
     const content = await readFile(path, 'utf-8');
-    const info = JSON.parse(content) as LockInfo;
+    const raw: unknown = JSON.parse(content);
 
-    if (isProcessRunning(info.pid)) {
-      const lockAge = Date.now() - info.acquiredAt;
-      if (lockAge < LOCK_TIMEOUT_MS) return null;
+    if (isValidLockInfo(raw)) {
+      if (isProcessRunning(raw.pid)) {
+        const lockAge = Date.now() - raw.acquiredAt;
+        if (lockAge < LOCK_TIMEOUT_MS) return null;
+      }
     }
 
-    // Stale lock or dead process -- remove it before trying exclusive create
+    // Invalid, stale, or dead-process lock -- remove before trying exclusive create
     await unlink(path);
   } catch {
     // No lock file or unreadable -- proceed to acquire
@@ -59,8 +61,8 @@ export async function releaseLock(memoryDir: string): Promise<void> {
   const path = lockPath(memoryDir);
   try {
     const content = await readFile(path, 'utf-8');
-    const info = JSON.parse(content) as LockInfo;
-    if (info.pid === process.pid) {
+    const raw: unknown = JSON.parse(content);
+    if (isValidLockInfo(raw) && raw.pid === process.pid) {
       await unlink(path);
     }
   } catch {
@@ -99,6 +101,15 @@ export async function rollbackLock(
   } catch {
     // Best effort
   }
+}
+
+function isValidLockInfo(v: unknown): v is LockInfo {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as Record<string, unknown>)['pid'] === 'number' &&
+    typeof (v as Record<string, unknown>)['acquiredAt'] === 'number'
+  );
 }
 
 function isProcessRunning(pid: number): boolean {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { detectProvider, resolveLlm } from './llm.js';
 
 describe('detectProvider', () => {
@@ -147,13 +147,8 @@ describe('resolveLlm', () => {
     expect(resolveLlm()).toBeUndefined();
   });
 
-  it('calls process.exit when no API key and required', () => {
-    const exitSpy = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never);
-    resolveLlm({ required: true });
-    expect(exitSpy).toHaveBeenCalledWith(1);
-    exitSpy.mockRestore();
+  it('throws when no API key and required', () => {
+    expect(() => resolveLlm({ required: true })).toThrow('MNEMONIO_API_KEY');
   });
 
   it('returns a function when API key is present', () => {

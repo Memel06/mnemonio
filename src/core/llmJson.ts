@@ -66,6 +66,8 @@ interface ExtractionMemory {
     readonly name: string;
     readonly description: string;
     readonly type: string;
+    readonly tags?: ReadonlyArray<string>;
+    readonly expires?: string;
   };
   readonly body: string;
 }

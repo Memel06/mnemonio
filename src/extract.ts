@@ -63,10 +63,19 @@ export async function extractMemories(
     if (!isInsideDir(resolvedDir, filePath)) continue;
 
     const parsedType = parseMemoryType(mem.frontmatter.type);
+    const tags = Array.isArray(mem.frontmatter.tags)
+      ? mem.frontmatter.tags.filter((t): t is string => typeof t === 'string')
+      : undefined;
+    const expires =
+      typeof mem.frontmatter.expires === 'string'
+        ? mem.frontmatter.expires
+        : undefined;
     const fm = buildFrontmatter({
       name: mem.frontmatter.name,
       description: mem.frontmatter.description,
       type: parsedType,
+      tags,
+      expires,
     });
 
     const content = `${fm}\n\n${mem.body}\n`;
@@ -79,12 +88,18 @@ export async function extractMemories(
     }
   }
 
+  const newFiles = new Set(written);
   if (parsed.manifestEntries && parsed.manifestEntries.length > 0) {
-    const newEntries = parsed.manifestEntries.join('\n') + '\n';
-    try {
-      await appendFile(entrypoint, newEntries, 'utf-8');
-    } catch {
-      await writeFile(entrypoint, newEntries, 'utf-8');
+    const createEntries = parsed.manifestEntries.filter((entry) =>
+      [...newFiles].some((f) => entry.includes(f)),
+    );
+    if (createEntries.length > 0) {
+      const newEntries = createEntries.join('\n') + '\n';
+      try {
+        await appendFile(entrypoint, newEntries, 'utf-8');
+      } catch {
+        await writeFile(entrypoint, newEntries, 'utf-8');
+      }
     }
   }
 

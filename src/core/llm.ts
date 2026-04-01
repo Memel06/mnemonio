@@ -109,10 +109,9 @@ export function resolveLlm(opts?: {
   const apiKey = process.env['MNEMONIO_API_KEY'];
   if (!apiKey) {
     if (opts?.required) {
-      console.error(
-        'Error: Set MNEMONIO_API_KEY environment variable. Point MNEMONIO_BASE_URL at any chat completions endpoint.',
+      throw new Error(
+        'MNEMONIO_API_KEY not set. Set the environment variable and point MNEMONIO_BASE_URL at any chat completions endpoint.',
       );
-      process.exit(1);
     }
     return undefined;
   }
