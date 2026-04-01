@@ -110,6 +110,8 @@ export function isConsolidationResult(v: unknown): v is ConsolidationResult {
   if (typeof v !== 'object' || v === null) return false;
   const obj = v as Record<string, unknown>;
   if (!Array.isArray(obj['updates'])) return false;
+  const manifest = obj['newManifest'];
+  if (manifest !== null && manifest !== undefined && typeof manifest !== 'string') return false;
   return obj['updates'].every((u: unknown) => {
     if (typeof u !== 'object' || u === null) return false;
     const upd = u as Record<string, unknown>;

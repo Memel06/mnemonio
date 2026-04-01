@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name('mnemonio')
   .description('Persistent structured memory layer for LLM agents')
-  .version('0.1.0');
+  .version(__VERSION__);
 
 program.addCommand(initCommand());
 program.addCommand(scanCommand());

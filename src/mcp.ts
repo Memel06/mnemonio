@@ -19,7 +19,7 @@ const llm = resolveLlm();
 const store = createMnemonioStore({ memoryDir, teamDir, llm });
 
 const server = new McpServer(
-  { name: 'mnemonio', version: '0.1.0' },
+  { name: 'mnemonio', version: __VERSION__ },
   {
     instructions:
       'Persistent file-based memory for LLM agents. Use these tools to search, read, save, and manage memories across sessions.',
@@ -153,19 +153,29 @@ server.registerTool('memory_save', {
     expires,
   });
 
+  let isNew = true;
+  try {
+    await stat(filePath);
+    isNew = false;
+  } catch {
+    // File doesn't exist yet — new memory
+  }
+
   const content = `${fm}\n\n${body}\n`;
   await writeFile(filePath, content, 'utf-8');
 
-  const entry = `- [${name}](${filename}) -- ${description}\n`;
-  const { entrypoint } = getEntrypoint();
-  try {
-    await appendFile(entrypoint, entry, 'utf-8');
-  } catch {
-    await writeFile(entrypoint, `# Memory Manifest\n\n${entry}`, 'utf-8');
+  if (isNew) {
+    const entry = `- [${name}](${filename}) -- ${description}\n`;
+    const { entrypoint } = getEntrypoint();
+    try {
+      await appendFile(entrypoint, entry, 'utf-8');
+    } catch {
+      await writeFile(entrypoint, `# Memory Manifest\n\n${entry}`, 'utf-8');
+    }
   }
 
   return {
-    content: [{ type: 'text', text: `Saved: ${filename}` }],
+    content: [{ type: 'text', text: `${isNew ? 'Created' : 'Updated'}: ${filename}` }],
   };
 });
 

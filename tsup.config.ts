@@ -1,4 +1,10 @@
 import { defineConfig } from 'tsup';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf-8')) as {
+  version: string;
+};
+const define = { __VERSION__: JSON.stringify(pkg.version) };
 
 export default defineConfig([
   {
@@ -9,6 +15,7 @@ export default defineConfig([
     clean: true,
     splitting: false,
     treeshake: true,
+    define,
   },
   {
     entry: ['src/cli.ts', 'src/mcp.ts'],
@@ -17,5 +24,6 @@ export default defineConfig([
     sourcemap: true,
     splitting: false,
     treeshake: true,
+    define,
   },
 ]);

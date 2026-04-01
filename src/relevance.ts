@@ -3,6 +3,8 @@ import type { LlmCallback, MemoryHeader, RelevantMemory } from './types.js';
 import { formatMemoryManifest } from './core/scan.js';
 import { parseLlmJson, isRelevanceResult } from './core/llmJson.js';
 
+const MAX_INPUT_BYTES = 100_000;
+
 interface RelevanceConfig {
   readonly llm: LlmCallback;
   readonly memoryDir: string;
@@ -21,9 +23,13 @@ export async function findRelevantMemories(
   const manifest = formatMemoryManifest(headers, memoryDir);
 
   const contents: string[] = [];
+  let totalBytes = 0;
   for (const h of headers) {
     try {
       const content = await readFile(h.filePath, 'utf-8');
+      const byteLen = Buffer.byteLength(content, 'utf-8');
+      if (totalBytes + byteLen > MAX_INPUT_BYTES) break;
+      totalBytes += byteLen;
       contents.push(`### ${h.filename}\n${content}`);
     } catch {
       contents.push(`### ${h.filename}\n(unreadable)`);
