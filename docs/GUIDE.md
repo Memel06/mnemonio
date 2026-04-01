@@ -28,15 +28,29 @@ Add to your MCP client settings (e.g. `settings.json`):
 
 That's it. The agent now has access to 7 memory tools:
 
-| Tool | LLM needed | What it does |
-|------|-----------|--------------|
-| `memory_list` | No | List all memories, optionally filtered by type |
-| `memory_read` | No | Read full content of a memory file |
-| `memory_save` | No | Save a new memory with frontmatter + manifest entry |
-| `memory_search` | Yes | Semantic search across all memories |
-| `memory_extract` | Yes | Auto-extract durable facts from a conversation |
-| `memory_distill` | Yes | Consolidate: merge duplicates, prune stale, tighten |
-| `memory_stats` | No | File count, size, type breakdown |
+| Tool | LLM needed | Team aware | What it does |
+|------|-----------|------------|--------------|
+| `memory_list` | No | Yes | List all memories, optionally filtered by type |
+| `memory_read` | No | Yes | Read full content of a memory file |
+| `memory_save` | No | No | Save a new memory with frontmatter + manifest entry |
+| `memory_search` | Yes | Yes | Semantic search across all memories |
+| `memory_extract` | Yes | No | Auto-extract durable facts from a conversation |
+| `memory_distill` | Yes | No | Consolidate: merge duplicates, prune stale, tighten |
+| `memory_stats` | No | Yes | File count, size, type breakdown |
+
+To include shared team memories, add `MNEMONIO_TEAM_DIR`:
+
+```json
+{
+  "env": {
+    "MNEMONIO_DIR": "./.mnemonio",
+    "MNEMONIO_TEAM_DIR": "./team-memory"
+  }
+}
+```
+
+Team memories appear in list, read, search, and stats. Write operations only
+touch the private directory. See the [Team Memory](#team-memory) section below.
 
 ### LLM-Dependent Tools
 
@@ -336,6 +350,9 @@ mnemonio scan .mnemonio
 # List with descriptions and age, filtered by type
 mnemonio list .mnemonio --type directive
 
+# Include team memories
+mnemonio list .mnemonio --team-dir ./team-memory
+
 # Machine-readable output
 mnemonio list .mnemonio --json
 ```
@@ -471,19 +488,54 @@ if (result.consolidated) {
 
 ## Team Memory
 
-Team memory is a shared read-only directory that gets appended to the prompt
-alongside private memories.
+Team memory is a shared, read-only directory that gives every developer's agent
+the same baseline context. Commit it to your repo so the whole team shares it.
 
 ### Setup
 
 ```
 project-root/
-  .mnemonio/           # private per-developer memory
+  .mnemonio/           # private per-developer memory (gitignored)
   team-memory/         # shared, committed to git
     onboarding.md
     coding-standards.md
     MANIFEST.md
 ```
+
+### MCP Server
+
+Add `MNEMONIO_TEAM_DIR` to your MCP config. Team memories automatically appear
+in `memory_list`, `memory_read`, `memory_search`, and `memory_stats`:
+
+```json
+{
+  "mcpServers": {
+    "mnemonio": {
+      "command": "npx",
+      "args": ["mnemonio-mcp"],
+      "env": {
+        "MNEMONIO_DIR": "./.mnemonio",
+        "MNEMONIO_TEAM_DIR": "./team-memory"
+      }
+    }
+  }
+}
+```
+
+Write operations (`memory_save`, `memory_extract`, `memory_distill`) only touch
+the private directory -- team memories are never modified by the agent.
+
+### CLI
+
+Use `--team-dir` with any read command:
+
+```bash
+mnemonio list .mnemonio --team-dir ./team-memory
+mnemonio search "coding standards" .mnemonio --team-dir ./team-memory
+mnemonio stats .mnemonio --team-dir ./team-memory
+```
+
+### Library
 
 ```typescript
 const store = createMnemonioStore({
@@ -526,6 +578,7 @@ Blocked patterns:
 | `MNEMONIO_MODEL` | CLI, MCP server | Model identifier (default: `auto`) |
 | `MNEMONIO_PROVIDER` | CLI, MCP server | Override auto-detection: `openai`, `openai-classic`, `anthropic`, `openrouter` |
 | `MNEMONIO_DIR` | MCP server | Memory directory path (default: `./.mnemonio`) |
+| `MNEMONIO_TEAM_DIR` | MCP server | Shared team memory directory (optional) |
 
 The library itself does not read environment variables. The CLI and MCP server
 read them. When using the library directly, you can either use the built-in

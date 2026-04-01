@@ -1,17 +1,21 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { readFile, writeFile, appendFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, writeFile, appendFile, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { createMnemonioStore } from './store.js';
 import { buildFrontmatter } from './core/frontmatter.js';
 import { parseMemoryType } from './core/memoryTypes.js';
-import { isInsideDir } from './core/paths.js';
+import { resolvePaths, isInsideDir } from './core/paths.js';
+import { scanMemoryFiles, formatMemoryManifest } from './core/scan.js';
+import { findRelevantMemories } from './relevance.js';
 import { resolveLlm } from './core/llm.js';
 
 const memoryDir = process.env['MNEMONIO_DIR'] ?? './.mnemonio';
+const teamDir = process.env['MNEMONIO_TEAM_DIR'];
+const resolvedTeamDir = teamDir ? resolve(teamDir) : undefined;
 const llm = resolveLlm();
-const store = createMnemonioStore({ memoryDir, llm });
+const store = createMnemonioStore({ memoryDir, teamDir, llm });
 
 const server = new McpServer(
   { name: 'mnemonio', version: '0.1.0' },
@@ -38,12 +42,28 @@ server.registerTool('memory_list', {
     ? headers.filter((h) => h.type === type)
     : headers;
 
-  if (filtered.length === 0) {
+  const sections: string[] = [];
+
+  if (filtered.length > 0) {
+    sections.push(store.formatManifest(filtered));
+  }
+
+  if (resolvedTeamDir) {
+    const teamHeaders = await scanMemoryFiles(resolvedTeamDir);
+    const teamFiltered = type
+      ? teamHeaders.filter((h) => h.type === type)
+      : teamHeaders;
+    if (teamFiltered.length > 0) {
+      const teamManifest = formatMemoryManifest(teamFiltered, resolvedTeamDir);
+      sections.push(`\n## Team Memory (shared, read-only)\n\n${teamManifest}`);
+    }
+  }
+
+  if (sections.length === 0) {
     return { content: [{ type: 'text', text: '(no memories stored)' }] };
   }
 
-  const manifest = store.formatManifest(filtered);
-  return { content: [{ type: 'text', text: manifest }] };
+  return { content: [{ type: 'text', text: sections.join('\n') }] };
 });
 
 // -- memory_read --
@@ -56,22 +76,31 @@ server.registerTool('memory_read', {
   },
 }, async ({ filename }) => {
   const filePath = join(memoryDir, filename);
-  if (!isInsideDir(memoryDir, filePath)) {
-    return {
-      content: [{ type: 'text', text: 'Error: invalid filename.' }],
-      isError: true,
-    };
+  if (isInsideDir(memoryDir, filePath)) {
+    try {
+      const content = await readFile(filePath, 'utf-8');
+      return { content: [{ type: 'text', text: content }] };
+    } catch {
+      // Not in private dir -- fall through to team dir
+    }
   }
 
-  try {
-    const content = await readFile(filePath, 'utf-8');
-    return { content: [{ type: 'text', text: content }] };
-  } catch {
-    return {
-      content: [{ type: 'text', text: `File not found: ${filename}` }],
-      isError: true,
-    };
+  if (resolvedTeamDir) {
+    const teamPath = join(resolvedTeamDir, filename);
+    if (isInsideDir(resolvedTeamDir, teamPath)) {
+      try {
+        const content = await readFile(teamPath, 'utf-8');
+        return { content: [{ type: 'text', text: `[team memory, read-only]\n\n${content}` }] };
+      } catch {
+        // Not found in team dir either
+      }
+    }
   }
+
+  return {
+    content: [{ type: 'text', text: `File not found: ${filename}` }],
+    isError: true,
+  };
 });
 
 // -- memory_save --
@@ -99,6 +128,21 @@ server.registerTool('memory_save', {
     };
   }
 
+  if (resolvedTeamDir) {
+    const teamPath = join(resolvedTeamDir, filename);
+    if (isInsideDir(resolvedTeamDir, teamPath)) {
+      try {
+        await stat(teamPath);
+        return {
+          content: [{ type: 'text', text: `Error: "${filename}" shadows a team memory. Choose a different filename.` }],
+          isError: true,
+        };
+      } catch {
+        // No team file with this name — proceed
+      }
+    }
+  }
+
   const parsedType = parseMemoryType(type);
   const fm = buildFrontmatter({
     name,
@@ -112,7 +156,7 @@ server.registerTool('memory_save', {
   await writeFile(filePath, content, 'utf-8');
 
   const entry = `- [${name}](${filename}) -- ${description}\n`;
-  const { entrypoint } = await getEntrypoint();
+  const { entrypoint } = getEntrypoint();
   try {
     await appendFile(entrypoint, entry, 'utf-8');
   } catch {
@@ -142,7 +186,28 @@ server.registerTool('memory_search', {
   }
 
   await store.ensureDir();
-  const results = await store.findRelevant(query, {
+  const { memoryDir: resolvedDir } = resolvePaths(memoryDir);
+  const headers = await store.scan();
+
+  const teamFileSet = new Set<string>();
+  let allHeaders = [...headers];
+  if (resolvedTeamDir) {
+    const teamHeaders = await scanMemoryFiles(resolvedTeamDir);
+    for (const h of teamHeaders) {
+      teamFileSet.add(h.filePath);
+    }
+    allHeaders = [...allHeaders, ...teamHeaders];
+  }
+
+  if (allHeaders.length === 0) {
+    return { content: [{ type: 'text', text: 'No relevant memories found.' }] };
+  }
+
+  const results = await findRelevantMemories({
+    llm,
+    memoryDir: resolvedDir,
+    headers: allHeaders,
+    query,
     maxResults: max_results ?? 5,
   });
 
@@ -150,9 +215,10 @@ server.registerTool('memory_search', {
     return { content: [{ type: 'text', text: 'No relevant memories found.' }] };
   }
 
-  const lines = results.map(
-    (r) => `${Math.round(r.score * 100)}%  ${r.filename}\n     ${r.reason}`,
-  );
+  const lines = results.map((r) => {
+    const tag = teamFileSet.has(r.filePath) ? ' [team]' : '';
+    return `${Math.round(r.score * 100)}%  ${r.filename}${tag}\n     ${r.reason}`;
+  });
   return { content: [{ type: 'text', text: lines.join('\n\n') }] };
 });
 
@@ -248,13 +314,17 @@ server.registerTool('memory_stats', {
     `  unknown: ${s.byType.unknown}`,
   ];
 
+  if (resolvedTeamDir) {
+    const teamHeaders = await scanMemoryFiles(resolvedTeamDir);
+    lines.push('', `Team files: ${teamHeaders.length}`);
+  }
+
   return { content: [{ type: 'text', text: lines.join('\n') }] };
 });
 
 // -- helper --
 
-async function getEntrypoint(): Promise<{ entrypoint: string }> {
-  const { resolvePaths } = await import('./core/paths.js');
+function getEntrypoint(): { entrypoint: string } {
   return resolvePaths(memoryDir);
 }
 

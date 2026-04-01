@@ -104,15 +104,16 @@ with OpenAI, Anthropic, OpenRouter, and any OpenAI-compatible endpoint.
 
 ```
 mnemonio init [dir]                        Create memory directory with MANIFEST.md
-mnemonio scan [dir] [--json]               Display all memory file headers
-mnemonio list [dir] [--type <t>] [--json]  List memories with descriptions + age
-mnemonio search <query> [dir] [--json]     Find relevant memories (LLM required)
+mnemonio scan [dir] [--team-dir <d>] [--json]               Display all memory file headers
+mnemonio list [dir] [--type <t>] [--team-dir <d>] [--json]  List memories with descriptions + age
+mnemonio search <query> [dir] [--team-dir <d>] [--json]     Find relevant memories (LLM required)
 mnemonio distill [dir] [--force] [--json]  Run consolidation pass (LLM required)
-mnemonio stats [dir] [--json]              File count, size, type breakdown
-mnemonio prune [dir] [--max-age <days>] [--dry-run]  Remove stale/empty files
+mnemonio stats [dir] [--team-dir <d>] [--json]              File count, size, type breakdown
+mnemonio prune [dir] [--max-age <days>] [--dry-run]         Remove stale/empty files
 ```
 
-All commands default to the current directory if `[dir]` is omitted.
+All commands default to the current directory if `[dir]` is omitted. Use `--team-dir`
+to include a shared team memory directory in listings, search, and stats.
 
 ## Configuration
 
@@ -197,8 +198,43 @@ auto-truncates it when injecting into prompts to stay within token budgets.
 
 ## Team Memory
 
-Set `teamDir` in your config to point at a shared directory. Team memories are
-read-only and appended to the prompt alongside private memories.
+Team memory is a shared, read-only directory that gives every developer's agent
+the same baseline context -- coding standards, onboarding notes, project
+conventions. Commit it to your repo so the whole team shares it.
+
+### MCP Server
+
+Set `MNEMONIO_TEAM_DIR` in your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "mnemonio": {
+      "command": "npx",
+      "args": ["mnemonio-mcp"],
+      "env": {
+        "MNEMONIO_DIR": "./.mnemonio",
+        "MNEMONIO_TEAM_DIR": "./team-memory"
+      }
+    }
+  }
+}
+```
+
+Team memories automatically appear in `memory_list`, `memory_read`,
+`memory_search`, and `memory_stats`. Write operations (`memory_save`,
+`memory_extract`, `memory_distill`) only touch the private directory.
+
+### CLI
+
+Use `--team-dir` with any read command:
+
+```bash
+mnemonio list .mnemonio --team-dir ./team-memory
+mnemonio search "coding standards" .mnemonio --team-dir ./team-memory
+```
+
+### Library
 
 ```typescript
 const store = createMnemonioStore({
@@ -212,6 +248,8 @@ const prompt = await store.buildCombinedPrompt();
 // Path traversal protection for team writes
 const safePath = await store.validateTeamWritePath('notes.md');
 ```
+
+### Security
 
 Path traversal attacks (symlinks, `../` segments, null bytes) are blocked by
 `validateTeamWritePath`. Use `isTeamPath` to check if a path falls within the
@@ -283,12 +321,16 @@ For LLM-dependent tools (search, extract, distill), also set:
 {
   "env": {
     "MNEMONIO_DIR": "./.mnemonio",
+    "MNEMONIO_TEAM_DIR": "./team-memory",
     "MNEMONIO_API_KEY": "your-api-key",
     "MNEMONIO_BASE_URL": "https://api.openai.com/v1",
     "MNEMONIO_MODEL": "gpt-4o"
   }
 }
 ```
+
+`MNEMONIO_TEAM_DIR` is optional. When set, team memories appear in list, read,
+search, and stats results. See [Team Memory](#team-memory) for details.
 
 The server auto-detects the provider from the base URL and formats requests
 accordingly:
@@ -317,15 +359,15 @@ Valid provider values: `openai`, `openai-classic`, `anthropic`, `openrouter`.
 
 ### Available Tools
 
-| Tool | LLM needed | Description |
-|------|-----------|-------------|
-| `memory_list` | No | List all memories, optionally filtered by type |
-| `memory_read` | No | Read full content of a memory file |
-| `memory_save` | No | Save a new memory with frontmatter + manifest entry |
-| `memory_search` | Yes | Semantic search across all memories |
-| `memory_extract` | Yes | Auto-extract durable facts from a conversation |
-| `memory_distill` | Yes | Consolidate: merge duplicates, prune stale, tighten |
-| `memory_stats` | No | File count, size, type breakdown |
+| Tool | LLM needed | Team aware | Description |
+|------|-----------|------------|-------------|
+| `memory_list` | No | Yes | List all memories, optionally filtered by type |
+| `memory_read` | No | Yes | Read full content of a memory file |
+| `memory_save` | No | No | Save a new memory with frontmatter + manifest entry |
+| `memory_search` | Yes | Yes | Semantic search across all memories |
+| `memory_extract` | Yes | No | Auto-extract durable facts from a conversation |
+| `memory_distill` | Yes | No | Consolidate: merge duplicates, prune stale, tighten |
+| `memory_stats` | No | Yes | File count, size, type breakdown |
 
 ## License
 
