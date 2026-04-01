@@ -20,7 +20,7 @@ your AI coding assistant gets persistent memory automatically.
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["mnemonio-mcp"],
+      "args": ["@memel06/mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio"
       }
@@ -36,7 +36,7 @@ For LLM-dependent tools (search, extract, distill), add your API key and model:
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["mnemonio-mcp"],
+      "args": ["@memel06/mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio",
         "MNEMONIO_API_KEY": "your-api-key",
@@ -99,7 +99,7 @@ Set `MNEMONIO_TEAM_DIR` in your MCP config:
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["mnemonio-mcp"],
+      "args": ["@memel06/mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio",
         "MNEMONIO_TEAM_DIR": "./team-memory"
@@ -146,7 +146,7 @@ team directory.
 ## CLI
 
 ```bash
-npm install -g mnemonio
+npm install -g @memel06/mnemonio
 ```
 
 The CLI reads `MNEMONIO_API_KEY` from your environment for LLM-dependent
@@ -170,13 +170,13 @@ to include a shared team memory directory in listings, search, and stats.
 ## Library
 
 ```bash
-npm install mnemonio
+npm install @memel06/mnemonio
 ```
 
 ### Quick Start
 
 ```typescript
-import { createMnemonioStore } from 'mnemonio';
+import { createMnemonioStore } from '@memel06/mnemonio';
 
 const store = createMnemonioStore({
   memoryDir: './.mnemonio',
@@ -205,7 +205,7 @@ The quickest way is to use the built-in `resolveLlm` helper, which reads
 `MNEMONIO_PROVIDER` from your environment and auto-detects the provider:
 
 ```typescript
-import { createMnemonioStore, resolveLlm } from 'mnemonio';
+import { createMnemonioStore, resolveLlm } from '@memel06/mnemonio';
 
 const store = createMnemonioStore({
   memoryDir: './.mnemonio',
@@ -216,7 +216,7 @@ const store = createMnemonioStore({
 Or wire up your own callback for full control:
 
 ```typescript
-import { createMnemonioStore, type LlmCallback } from 'mnemonio';
+import { createMnemonioStore, type LlmCallback } from '@memel06/mnemonio';
 
 const llm: LlmCallback = async ({ system, messages, maxTokens }) => {
   const response = await yourClient.chat({
