@@ -48,14 +48,38 @@ needs an LLM. Add these env vars:
   "env": {
     "MNEMONIO_DIR": "./.mnemonio",
     "MNEMONIO_API_KEY": "your-api-key",
-    "MNEMONIO_BASE_URL": "https://your-provider.com/v1",
-    "MNEMONIO_MODEL": "your-model"
+    "MNEMONIO_BASE_URL": "https://api.openai.com/v1",
+    "MNEMONIO_MODEL": "gpt-4o"
   }
 }
 ```
 
-The server speaks the standard `/chat/completions` protocol, so any compatible
-provider works.
+The server auto-detects the provider from the base URL:
+
+| Base URL contains | Provider | Notes |
+|-------------------|----------|-------|
+| `openai.com` | OpenAI (modern) | Uses `max_completion_tokens` for GPT-4o+ |
+| `anthropic.com` | Anthropic | Uses Messages API (`/v1/messages`, `x-api-key`) |
+| `openrouter.ai` | OpenRouter | Uses `/chat/completions` with `max_tokens` |
+| anything else | Generic | OpenAI-compatible `/chat/completions` |
+
+Override auto-detection with `MNEMONIO_PROVIDER` if needed (e.g., when using a
+proxy):
+
+```json
+{
+  "env": {
+    "MNEMONIO_PROVIDER": "anthropic",
+    "MNEMONIO_API_KEY": "sk-ant-...",
+    "MNEMONIO_BASE_URL": "https://api.anthropic.com",
+    "MNEMONIO_MODEL": "claude-sonnet-4-6-20250514"
+  }
+}
+```
+
+Valid provider values: `openai`, `openai-classic`, `anthropic`, `openrouter`.
+Use `openai-classic` for older OpenAI models (GPT-3.5, GPT-4 Turbo) that
+require `max_tokens` instead of `max_completion_tokens`.
 
 ### Global Install
 
@@ -172,14 +196,34 @@ The frontmatter fields:
 
 ### Wiring Up the LLM Callback
 
-Mnemonio doesn't bundle any provider SDK. You write one callback function that
-takes a system prompt, messages, and max tokens, and returns the model's text
-response. This works with any provider.
+**Option 1: Built-in provider resolution** (easiest)
+
+Use the `resolveLlm` helper, which reads environment variables and
+auto-detects the provider:
+
+```typescript
+import { createMnemonioStore, resolveLlm } from 'mnemonio';
+
+const store = createMnemonioStore({
+  memoryDir: './.mnemonio',
+  llm: resolveLlm(),
+});
+
+await store.ensureDir();
+```
+
+Set `MNEMONIO_API_KEY`, `MNEMONIO_BASE_URL`, and `MNEMONIO_MODEL` in your
+environment. The provider (OpenAI, Anthropic, OpenRouter, or generic) is
+auto-detected from the URL, or override with `MNEMONIO_PROVIDER`.
+
+**Option 2: Custom callback** (full control)
+
+Write one callback function that takes a system prompt, messages, and max
+tokens, and returns the model's text response:
 
 ```typescript
 import { createMnemonioStore, type LlmCallback } from 'mnemonio';
 
-// Example: generic provider SDK
 const llm: LlmCallback = async ({ system, messages, maxTokens }) => {
   const response = await yourProvider.chat.create({
     model: 'your-preferred-model',
@@ -298,10 +342,12 @@ mnemonio list .mnemonio --json
 
 ### Search
 
-Semantic search requires an API key in your environment:
+Semantic search requires an API key and provider config in your environment:
 
 ```bash
 export MNEMONIO_API_KEY=your-api-key
+export MNEMONIO_BASE_URL=https://api.openai.com/v1  # or anthropic.com, openrouter.ai
+export MNEMONIO_MODEL=gpt-4o
 mnemonio search "database testing" .mnemonio
 ```
 
@@ -476,17 +522,19 @@ Blocked patterns:
 | Variable | Used by | Description |
 |----------|---------|-------------|
 | `MNEMONIO_API_KEY` | CLI, MCP server | API key for LLM-dependent operations |
-| `MNEMONIO_BASE_URL` | CLI, MCP server | Chat completions base URL (default: OpenRouter) |
+| `MNEMONIO_BASE_URL` | CLI, MCP server | Provider base URL (default: OpenRouter) |
 | `MNEMONIO_MODEL` | CLI, MCP server | Model identifier (default: `auto`) |
+| `MNEMONIO_PROVIDER` | CLI, MCP server | Override auto-detection: `openai`, `openai-classic`, `anthropic`, `openrouter` |
 | `MNEMONIO_DIR` | MCP server | Memory directory path (default: `./.mnemonio`) |
 
 The library itself does not read environment variables. The CLI and MCP server
-read them. When using the library directly, you provide your own `LlmCallback`
-and handle configuration however you want.
+read them. When using the library directly, you can either use the built-in
+`resolveLlm()` helper (which reads these env vars) or provide your own
+`LlmCallback`.
 
-Both the CLI and MCP server speak the standard chat completions protocol
-(`/chat/completions`), so they work with any provider that exposes that
-endpoint -- hosted or local.
+The CLI and MCP server auto-detect the provider from the base URL and format
+requests accordingly -- OpenAI, Anthropic, OpenRouter, and generic
+OpenAI-compatible endpoints are all supported out of the box.
 
 ## Troubleshooting
 
@@ -510,11 +558,22 @@ The CLI's `search` and `distill` commands need an API key. Export one:
 export MNEMONIO_API_KEY=your-api-key
 ```
 
-Optionally point at your provider:
+Point at your provider (auto-detected from URL):
 
 ```bash
-export MNEMONIO_BASE_URL=https://your-provider.com/v1
-export MNEMONIO_MODEL=your-model-id
+# OpenAI
+export MNEMONIO_BASE_URL=https://api.openai.com/v1
+export MNEMONIO_MODEL=gpt-4o
+
+# Anthropic
+export MNEMONIO_BASE_URL=https://api.anthropic.com
+export MNEMONIO_MODEL=claude-sonnet-4-6-20250514
+
+# OpenRouter (default if MNEMONIO_BASE_URL is not set)
+export MNEMONIO_MODEL=auto
+
+# Override auto-detection if needed
+export MNEMONIO_PROVIDER=anthropic
 ```
 
 ### Distillation keeps returning "too soon since last distillation"

@@ -4,50 +4,12 @@ import { z } from 'zod';
 import { readFile, writeFile, appendFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createMnemonioStore } from './store.js';
-import type { LlmCallback } from './types.js';
 import { buildFrontmatter } from './core/frontmatter.js';
 import { parseMemoryType } from './core/memoryTypes.js';
 import { isInsideDir } from './core/paths.js';
+import { resolveLlm } from './core/llm.js';
 
 const memoryDir = process.env['MNEMONIO_DIR'] ?? './.mnemonio';
-
-function resolveLlm(): LlmCallback | undefined {
-  const apiKey = process.env['MNEMONIO_API_KEY'];
-  if (!apiKey) return undefined;
-
-  const baseUrl = (
-    process.env['MNEMONIO_BASE_URL'] ?? 'https://api.openrouter.ai/api/v1'
-  ).replace(/\/+$/, '');
-  const model = process.env['MNEMONIO_MODEL'] ?? 'auto';
-
-  return async ({ system, messages, maxTokens }) => {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        messages: [{ role: 'system', content: system }, ...messages],
-      }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`LLM API error ${response.status}: ${text}`);
-    }
-
-    const data = (await response.json()) as {
-      readonly choices: ReadonlyArray<{
-        readonly message: { readonly content: string };
-      }>;
-    };
-    return data.choices[0]?.message.content ?? '';
-  };
-}
-
 const llm = resolveLlm();
 const store = createMnemonioStore({ memoryDir, llm });
 

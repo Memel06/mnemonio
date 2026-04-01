@@ -47,14 +47,25 @@ console.log(`${stats.totalFiles} files, ${stats.totalBytes} bytes`);
 
 ### With an LLM (search, extraction, distillation)
 
+The quickest way is to use the built-in `resolveLlm` helper, which reads
+`MNEMONIO_API_KEY`, `MNEMONIO_BASE_URL`, `MNEMONIO_MODEL`, and
+`MNEMONIO_PROVIDER` from your environment and auto-detects the provider:
+
+```typescript
+import { createMnemonioStore, resolveLlm } from 'mnemonio';
+
+const store = createMnemonioStore({
+  memoryDir: './.mnemonio',
+  llm: resolveLlm(),
+});
+```
+
+Or wire up your own callback for full control:
+
 ```typescript
 import { createMnemonioStore, type LlmCallback } from 'mnemonio';
 
-// Wire up any LLM provider -- this is the only integration point.
-// The callback receives a system prompt, messages, and max tokens,
-// and returns the model's text response.
 const llm: LlmCallback = async ({ system, messages, maxTokens }) => {
-  // Replace with your provider's SDK or HTTP call
   const response = await yourClient.chat({
     model: 'your-model',
     max_tokens: maxTokens,
@@ -87,8 +98,9 @@ await store.distill({ force: true });
 ## CLI
 
 The CLI reads `MNEMONIO_API_KEY` from your environment for LLM-dependent
-commands (`search`, `distill`). It speaks the standard chat completions protocol
-(`/chat/completions`), so it works with any provider that exposes that interface.
+commands (`search`, `distill`). It auto-detects the provider from
+`MNEMONIO_BASE_URL` (or you can set `MNEMONIO_PROVIDER` explicitly) and works
+with OpenAI, Anthropic, OpenRouter, and any OpenAI-compatible endpoint.
 
 ```
 mnemonio init [dir]                        Create memory directory with MANIFEST.md
@@ -272,11 +284,36 @@ For LLM-dependent tools (search, extract, distill), also set:
   "env": {
     "MNEMONIO_DIR": "./.mnemonio",
     "MNEMONIO_API_KEY": "your-api-key",
-    "MNEMONIO_BASE_URL": "https://your-provider.com/v1",
-    "MNEMONIO_MODEL": "your-model"
+    "MNEMONIO_BASE_URL": "https://api.openai.com/v1",
+    "MNEMONIO_MODEL": "gpt-4o"
   }
 }
 ```
+
+The server auto-detects the provider from the base URL and formats requests
+accordingly:
+
+| Base URL contains | Provider | Token param | Auth | Endpoint |
+|-------------------|----------|-------------|------|----------|
+| `openai.com` | OpenAI (modern) | `max_completion_tokens` | `Bearer` | `/chat/completions` |
+| `anthropic.com` | Anthropic | `max_tokens` | `x-api-key` | `/v1/messages` |
+| `openrouter.ai` | OpenRouter | `max_tokens` | `Bearer` | `/chat/completions` |
+| anything else | Generic (OpenAI-compatible) | `max_tokens` | `Bearer` | `/chat/completions` |
+
+Override auto-detection with `MNEMONIO_PROVIDER`:
+
+```json
+{
+  "env": {
+    "MNEMONIO_PROVIDER": "anthropic",
+    "MNEMONIO_API_KEY": "sk-ant-...",
+    "MNEMONIO_BASE_URL": "https://api.anthropic.com",
+    "MNEMONIO_MODEL": "claude-sonnet-4-6-20250514"
+  }
+}
+```
+
+Valid provider values: `openai`, `openai-classic`, `anthropic`, `openrouter`.
 
 ### Available Tools
 

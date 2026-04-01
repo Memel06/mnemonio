@@ -46,6 +46,7 @@ export {
 } from './team/teamPaths.js';
 
 export { parseLlmJson } from './core/llmJson.js';
+export { resolveLlm, detectProvider } from './core/llm.js';
 
 export { findRelevantMemories } from './relevance.js';
 export { extractMemories } from './extract.js';
