@@ -29,7 +29,18 @@ your AI coding assistant gets persistent memory automatically.
 }
 ```
 
-For LLM-dependent tools (search, extract, distill), add your API key and model:
+For LLM-dependent tools (search, extract, distill), create a `.env` file in your
+project root (and add it to `.gitignore`):
+
+```env
+MNEMONIO_API_KEY=your-api-key
+MNEMONIO_BASE_URL=https://your-llm-provider.com/v1
+MNEMONIO_MODEL=your-model
+```
+
+Mnemonio loads `.env` automatically.
+
+You can also pass these as env vars in the MCP config if you prefer:
 
 ```json
 {
@@ -39,7 +50,6 @@ For LLM-dependent tools (search, extract, distill), add your API key and model:
       "args": ["@memel06/mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio",
-        "MNEMONIO_API_KEY": "your-api-key",
         "MNEMONIO_BASE_URL": "https://your-llm-provider.com/v1",
         "MNEMONIO_MODEL": "your-model"
       }
@@ -57,17 +67,13 @@ The server auto-detects the provider from the base URL:
 | `openrouter.ai` | OpenRouter | `max_tokens` | `Bearer` | `/chat/completions` |
 | anything else | Generic (OpenAI-compatible) | `max_tokens` | `Bearer` | `/chat/completions` |
 
-Override auto-detection with `MNEMONIO_PROVIDER`:
+Override auto-detection with `MNEMONIO_PROVIDER` (in `.env` or MCP config):
 
-```json
-{
-  "env": {
-    "MNEMONIO_PROVIDER": "anthropic",
-    "MNEMONIO_API_KEY": "sk-ant-...",
-    "MNEMONIO_BASE_URL": "https://api.anthropic.com",
-    "MNEMONIO_MODEL": "claude-sonnet-4-6-20250514"
-  }
-}
+```env
+MNEMONIO_PROVIDER=anthropic
+MNEMONIO_API_KEY=sk-ant-...
+MNEMONIO_BASE_URL=https://api.anthropic.com
+MNEMONIO_MODEL=claude-sonnet-4-6-20250514
 ```
 
 Valid provider values: `openai`, `openai-classic`, `anthropic`, `openrouter`.

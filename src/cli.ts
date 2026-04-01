@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Command } from 'commander';
 import { initCommand } from './cli/commands/init.js';
 import { scanCommand } from './cli/commands/scan.js';
