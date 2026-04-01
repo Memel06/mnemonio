@@ -20,7 +20,7 @@ your AI coding assistant gets persistent memory automatically.
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["@memel06/mnemonio-mcp"],
+      "args": ["-p", "@memel06/mnemonio", "mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio"
       }
@@ -47,7 +47,7 @@ You can also pass these as env vars in the MCP config if you prefer:
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["@memel06/mnemonio-mcp"],
+      "args": ["-p", "@memel06/mnemonio", "mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio",
         "MNEMONIO_BASE_URL": "https://your-llm-provider.com/v1",
@@ -105,7 +105,7 @@ Set `MNEMONIO_TEAM_DIR` in your MCP config:
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["@memel06/mnemonio-mcp"],
+      "args": ["-p", "@memel06/mnemonio", "mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio",
         "MNEMONIO_TEAM_DIR": "./team-memory"

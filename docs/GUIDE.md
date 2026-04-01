@@ -17,7 +17,7 @@ Add to your MCP client settings (e.g. `settings.json`):
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["mnemonio-mcp"],
+      "args": ["-p", "@memel06/mnemonio", "mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio"
       }
@@ -97,7 +97,7 @@ require `max_tokens` instead of `max_completion_tokens`.
 
 ### Global Install
 
-If you install mnemonio globally (`npm i -g mnemonio`), you can use the binary
+If you install mnemonio globally (`npm i -g @memel06/mnemonio`), you can use the binary
 directly instead of `npx`:
 
 ```json
@@ -512,7 +512,7 @@ in `memory_list`, `memory_read`, `memory_search`, and `memory_stats`:
   "mcpServers": {
     "mnemonio": {
       "command": "npx",
-      "args": ["mnemonio-mcp"],
+      "args": ["-p", "@memel06/mnemonio", "mnemonio-mcp"],
       "env": {
         "MNEMONIO_DIR": "./.mnemonio",
         "MNEMONIO_TEAM_DIR": "./team-memory"
