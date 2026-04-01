@@ -1,6 +1,6 @@
 {
   "name": "@memel06/mnemonio",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Persistent structured memory layer for LLM agents",
   "type": "module",
   "main": "./dist/index.cjs",
