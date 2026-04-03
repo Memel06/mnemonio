@@ -25,6 +25,7 @@ export interface MemoryHeader {
   readonly mtimeMs: number;
   readonly description: string | null;
   readonly type: MemoryType | undefined;
+  readonly tags: ReadonlyArray<string>;
 }
 
 export interface MnemonioConfig {

@@ -35,13 +35,15 @@ server.registerTool('memory_list', {
     type: z.optional(
       z.enum(['identity', 'directive', 'context', 'bookmark']),
     ),
+    tags: z.optional(z.array(z.string())).describe('Filter by tags (any match)'),
   },
-}, async ({ type }) => {
+}, async ({ type, tags }) => {
   await store.ensureDir();
   const headers = await store.scan();
-  const filtered = type
-    ? headers.filter((h) => h.type === type)
-    : headers;
+  const byType = type ? headers.filter((h) => h.type === type) : headers;
+  const filtered = tags?.length
+    ? byType.filter((h) => tags.some((t) => h.tags.includes(t)))
+    : byType;
 
   const sections: string[] = [];
 
@@ -51,9 +53,10 @@ server.registerTool('memory_list', {
 
   if (resolvedTeamDir) {
     const teamHeaders = await scanMemoryFiles(resolvedTeamDir);
-    const teamFiltered = type
-      ? teamHeaders.filter((h) => h.type === type)
-      : teamHeaders;
+    const teamByType = type ? teamHeaders.filter((h) => h.type === type) : teamHeaders;
+    const teamFiltered = tags?.length
+      ? teamByType.filter((h) => tags.some((t) => h.tags.includes(t)))
+      : teamByType;
     if (teamFiltered.length > 0) {
       const teamManifest = formatMemoryManifest(teamFiltered, resolvedTeamDir);
       sections.push(`\n## Team Memory (shared, read-only)\n\n${teamManifest}`);
@@ -179,6 +182,26 @@ server.registerTool('memory_save', {
   };
 });
 
+// -- memory_delete --
+
+server.registerTool('memory_delete', {
+  description: 'Delete a memory file and remove it from the manifest.',
+  inputSchema: {
+    filename: z.string().describe('The memory filename to delete, e.g. "directive_testing.md"'),
+  },
+}, async ({ filename }) => {
+  const filePath = join(memoryDir, filename);
+  if (!isInsideDir(memoryDir, filePath)) {
+    return { content: [{ type: 'text', text: 'Error: invalid filename.' }], isError: true };
+  }
+  try {
+    await store.delete(filename);
+    return { content: [{ type: 'text', text: `Deleted: ${filename}` }] };
+  } catch {
+    return { content: [{ type: 'text', text: `File not found: ${filename}` }], isError: true };
+  }
+});
+
 // -- memory_search --
 
 server.registerTool('memory_search', {
@@ -187,8 +210,9 @@ server.registerTool('memory_search', {
   inputSchema: {
     query: z.string().describe('Natural language search query'),
     max_results: z.optional(z.number().int().min(1).max(20)).describe('Max results to return (default: 5)'),
+    tags: z.optional(z.array(z.string())).describe('Pre-filter memories by tags before semantic search (any match)'),
   },
-}, async ({ query, max_results }) => {
+}, async ({ query, max_results, tags }) => {
   if (!llm) {
     return {
       content: [{ type: 'text', text: 'Error: MNEMONIO_API_KEY not set. Search requires an LLM.' }],
@@ -210,14 +234,18 @@ server.registerTool('memory_search', {
     allHeaders = [...allHeaders, ...teamHeaders];
   }
 
-  if (allHeaders.length === 0) {
+  const filteredHeaders = tags?.length
+    ? allHeaders.filter((h) => tags.some((t) => h.tags.includes(t)))
+    : allHeaders;
+
+  if (filteredHeaders.length === 0) {
     return { content: [{ type: 'text', text: 'No relevant memories found.' }] };
   }
 
   const results = await findRelevantMemories({
     llm,
     memoryDir: resolvedDir,
-    headers: allHeaders,
+    headers: filteredHeaders,
     query,
     maxResults: max_results ?? 5,
   });

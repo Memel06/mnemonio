@@ -1,4 +1,5 @@
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type {
   MnemonioConfig,
   EntrypointTruncation,
@@ -180,6 +181,21 @@ export class MnemonioStore {
   isTeamPath(filePath: string): boolean {
     if (!this.config.teamDir) return false;
     return checkIsTeamPath(this.config.teamDir, filePath);
+  }
+
+  async delete(filename: string): Promise<void> {
+    const filePath = join(this.paths.memoryDir, filename);
+    await unlink(filePath);
+    try {
+      const raw = await readFile(this.paths.entrypoint, 'utf-8');
+      const filtered = raw
+        .split('\n')
+        .filter((line) => !line.includes(filename))
+        .join('\n');
+      await writeFile(this.paths.entrypoint, filtered, 'utf-8');
+    } catch {
+      // MANIFEST.md missing — no-op
+    }
   }
 
   private requireLlm(): LlmCallback {

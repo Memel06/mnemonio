@@ -84,10 +84,11 @@ Valid provider values: `openai`, `openai-classic`, `anthropic`, `openrouter`.
 
 | Tool | LLM needed | Team aware | Description |
 |------|-----------|------------|-------------|
-| `memory_list` | No | Yes | List all memories, optionally filtered by type |
+| `memory_list` | No | Yes | List all memories, optionally filtered by type or tags |
 | `memory_read` | No | Yes | Read full content of a memory file |
 | `memory_save` | No | No | Save a new memory with frontmatter + manifest entry |
-| `memory_search` | Yes | Yes | Semantic search across all memories |
+| `memory_delete` | No | No | Delete a memory file and remove it from the manifest |
+| `memory_search` | Yes | Yes | Semantic search across all memories, with optional tag pre-filter |
 | `memory_extract` | Yes | No | Auto-extract durable facts from a conversation |
 | `memory_distill` | Yes | No | Consolidate: merge duplicates, prune stale, tighten |
 | `memory_stats` | No | Yes | File count, size, type breakdown |
@@ -372,7 +373,7 @@ auto-truncates it when injecting into prompts to stay within token budgets.
 | `description` | No | One-line summary shown in listings and manifests |
 | `type` | No | `identity`, `directive`, `context`, or `bookmark` |
 | `tags` | No | Freeform labels for cross-cutting concerns |
-| `expires` | No | ISO date after which this memory should be considered stale |
+| `expires` | No | ISO date after which this memory is automatically excluded from all operations |
 
 ## License
 
