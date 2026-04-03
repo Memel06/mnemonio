@@ -19,8 +19,8 @@
     }
   },
   "bin": {
-    "mnemonio": "./dist/cli.js",
-    "mnemonio-mcp": "./dist/mcp.js"
+    "mnemonio": "dist/cli.js",
+    "mnemonio-mcp": "dist/mcp.js"
   },
   "files": [
     "dist"
