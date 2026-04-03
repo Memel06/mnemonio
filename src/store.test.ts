@@ -167,6 +167,35 @@ describe('MnemonioStore', () => {
     });
   });
 
+  describe('delete', () => {
+    it('removes the file and filters manifest entry', async () => {
+      const store = createMnemonioStore({ memoryDir: dir });
+      await store.ensureDir();
+      await writeFile(join(dir, 'target.md'), '---\nname: target\n---\nContent.');
+      await writeFile(join(dir, 'MANIFEST.md'), '# Manifest\n- [target](target.md) -- some memory\n- [other](other.md) -- keep\n');
+
+      await store.delete('target.md');
+
+      await expect(stat(join(dir, 'target.md'))).rejects.toThrow();
+      const manifest = await readFile(join(dir, 'MANIFEST.md'), 'utf-8');
+      expect(manifest).not.toContain('target.md');
+      expect(manifest).toContain('other.md');
+    });
+
+    it('throws when file does not exist', async () => {
+      const store = createMnemonioStore({ memoryDir: dir });
+      await store.ensureDir();
+      await expect(store.delete('nonexistent.md')).rejects.toThrow();
+    });
+
+    it('succeeds even when MANIFEST.md is missing', async () => {
+      const store = createMnemonioStore({ memoryDir: dir });
+      await writeFile(join(dir, 'target.md'), '---\nname: target\n---\nContent.');
+      await store.delete('target.md');
+      await expect(stat(join(dir, 'target.md'))).rejects.toThrow();
+    });
+  });
+
   describe('team memory', () => {
     it('isTeamPath returns false without teamDir configured', () => {
       const store = createMnemonioStore({ memoryDir: dir });

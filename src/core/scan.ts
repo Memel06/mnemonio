@@ -33,12 +33,18 @@ export async function scanMemoryFiles(
       if (!fileStat.isFile()) continue;
 
       const { frontmatter } = parseFrontmatter(content);
+
+      if (frontmatter.expires && new Date(frontmatter.expires) < new Date()) {
+        continue;
+      }
+
       headers.push({
         filename,
         filePath,
         mtimeMs: fileStat.mtimeMs,
         description: frontmatter.description ?? null,
         type: frontmatter.type,
+        tags: frontmatter.tags ?? [],
       });
     } catch {
       // Skip unreadable files

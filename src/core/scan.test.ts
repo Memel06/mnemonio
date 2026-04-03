@@ -67,6 +67,44 @@ describe('scanMemoryFiles', () => {
     const result = await scanMemoryFiles(dir, controller.signal);
     expect(result).toEqual([]);
   });
+
+  it('excludes expired memories', async () => {
+    await writeFile(
+      join(dir, 'expired.md'),
+      '---\nname: old\ndescription: Old memory\nexpires: "2020-01-01"\n---\nOld.',
+    );
+    await writeFile(
+      join(dir, 'valid.md'),
+      '---\nname: current\ndescription: Current memory\nexpires: "2099-01-01"\n---\nNew.',
+    );
+    const result = await scanMemoryFiles(dir);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.filename).toBe('valid.md');
+  });
+
+  it('includes memories with no expiry', async () => {
+    await writeFile(
+      join(dir, 'no-expiry.md'),
+      '---\nname: no-expiry\ndescription: No expiry\n---\nContent.',
+    );
+    const result = await scanMemoryFiles(dir);
+    expect(result).toHaveLength(1);
+  });
+
+  it('populates tags from frontmatter', async () => {
+    await writeFile(
+      join(dir, 'tagged.md'),
+      '---\nname: tagged\ntags:\n  - foo\n  - bar\n---\nContent.',
+    );
+    const result = await scanMemoryFiles(dir);
+    expect(result[0]!.tags).toEqual(['foo', 'bar']);
+  });
+
+  it('returns empty tags array when no tags in frontmatter', async () => {
+    await writeFile(join(dir, 'untagged.md'), '---\nname: untagged\n---\nContent.');
+    const result = await scanMemoryFiles(dir);
+    expect(result[0]!.tags).toEqual([]);
+  });
 });
 
 describe('formatMemoryManifest', () => {
@@ -82,6 +120,7 @@ describe('formatMemoryManifest', () => {
         mtimeMs: Date.now(),
         description: 'A test memory',
         type: 'directive' as const,
+        tags: [] as string[],
       },
     ];
     const result = formatMemoryManifest(headers, dir);
@@ -98,6 +137,7 @@ describe('formatMemoryManifest', () => {
         mtimeMs: Date.now(),
         description: null,
         type: undefined,
+        tags: [] as string[],
       },
     ];
     const result = formatMemoryManifest(headers, dir);
